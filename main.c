@@ -70,8 +70,8 @@ typedef struct {
 } Arena;
 
 Arena arena_create(u64 reserve_size) {
-    const u64 pageSize = get_page_size();
-    reserve_size = ALIGN_UP_POW2(reserve_size, pageSize);
+    const u64 page_size = get_page_size();
+    reserve_size = ALIGN_UP_POW2(reserve_size, page_size);
 
     void* base = reserve_memory(reserve_size);
     if (base == NULL) {
@@ -91,27 +91,28 @@ Arena arena_create(u64 reserve_size) {
 void* arena_push(Arena* arena, u64 size, u64 alignment) {
     assert((alignment & (alignment - 1)) == 0); // alignment must be power of 2
 
-    const u64 alignedUsed = ALIGN_UP_POW2(arena->used, alignment);
-    const u64 newUsed = alignedUsed + size;
+    const u64 aligned_used = ALIGN_UP_POW2(arena->used, alignment);
+    const u64 newUsed = aligned_used + size;
 
     if (newUsed > arena->reserved) {
         exit(1);
     }
 
     if (newUsed > arena->committed) {
-        const u64 pageSize = get_page_size();
-        // No need to clamp `newCommit` here because `newUsed <= arena->reserved`,
+        const u64 page_size = get_page_size();
+        // No need to clamp `new_commit` here because `newUsed <= arena->reserved`,
         // and `arena->reserved` is is already aligned to page size. Therefore,
-        // `newCommit` will also be <= `arena->reserved`.
-        const u64 newCommit = ALIGN_UP_POW2(newUsed, pageSize);
-        if (commit_memory((char*)arena->base + arena->committed, newCommit - arena->committed) ==
-            NULL) {
+        // `new_commit` will also be <= `arena->reserved`.
+        const u64 new_commit = ALIGN_UP_POW2(newUsed, page_size);
+        char* start = (char*)arena->base + arena->committed;
+        u64 commit_size = new_commit - arena->committed;
+        if (commit_memory(start, commit_size) == NULL) {
             exit(1);
         }
-        arena->committed = newCommit;
+        arena->committed = new_commit;
     }
 
-    void* result = (char*)arena->base + alignedUsed;
+    void* result = (char*)arena->base + aligned_used;
     arena->used = newUsed;
     return result;
 }
