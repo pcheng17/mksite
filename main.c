@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -21,9 +20,6 @@ typedef int8_t   i8;
 // clang-format on
 
 #define ALIGNMENT 16
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define CLAMP(x, lo, hi) (MIN(MAX(x, lo), hi))
 #define ALIGN_UP_POW2(n, pow2) (((u64)(n) + ((u64)(pow2) - 1)) & (~((u64)(pow2) - 1)))
 
 #define KB(n) ((u64)(n) << 10)
