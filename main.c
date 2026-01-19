@@ -419,35 +419,32 @@ bool build_index(Page* pages, u32 page_count) {
     }
 
     // Output HTML header
+    // clang-format off
     PRINT("<!DOCTYPE html>\n");
     PRINT("<html lang=\"en\">\n");
     PRINT("<head>\n");
     PRINT("  <meta charset=\"utf-8\">\n");
-    PRINT(
-        "  <meta name=\"viewport\" content=\"width=device-width, "
-        "initial-scale=1\">\n");
+    PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     PRINT("  <title>Blog Index</title>\n");
     PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
     PRINT("</head>\n");
     PRINT("<body>\n");
     PRINT("  <h1>Blog Posts</h1>\n");
-
     PRINT("  <table class=\"archive\">\n");
     PRINT("    <thead><tr><th>date</th><th>title</th><th>tags</th></tr></thead>\n");
     PRINT("      <tbody>\n");
     for (u32 i = 0; i < page_count; ++i) {
-        Page* page = &pages[i];
-        PRINT(
-            "        <tr><td class=\"time\"><time>%s</time></td><td class=\"title\"><a href=\"posts/%s.html\">%s</a></td></tr>\n",
-            page->date,
-            page->slug,
-            page->title);
+        const Page* page = &pages[i];
+        PRINT("        <tr>\n");
+        PRINT("          <td class=\"date\">%s</td>\n", page->date);
+        PRINT("          <td class=\"title\"><a href=\"posts/%s.html\">%s</a></td>\n", page->slug, page->title);
+        PRINT("        </tr>\n");
     }
     PRINT("    </tbody>\n");
     PRINT("  </table>\n");
-
     PRINT("</body>\n");
     PRINT("</html>\n");
+    // clang-format on
 
     fclose(fout);
     return true;
