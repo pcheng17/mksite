@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <dirent.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -139,9 +140,16 @@ char* read_file(Arena* arena, const char* path, u64* file_len) {
     return content;
 }
 
+typedef struct {
+    char path[512];
+    char title[256];
+    char date[64];
+} PageInfo;
+
 #define PRINT(...) fprintf(fout, __VA_ARGS__)
 
 #define BUILD_DIR "./public"
+#define CONTENT_DIR "./content"
 
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
@@ -156,6 +164,55 @@ int main(int argc, char** argv) {
     }
 
     Arena arena = arena_create(KB(1));
+
+    DIR *dir = opendir(CONTENT_DIR);
+    if (!dir) {
+        fprintf(stderr, "Failed to open content directory: %s\n", CONTENT_DIR);
+        return 1;
+    }
+
+    PageInfo* pages;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        const char *name = entry->d_name;
+        u32 len = strlen(name);
+        if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
+            printf("Found file: %s\n", name);
+
+            // Read file
+            // char path[512];
+            // snprintf(path, sizeof(path), "%s/%s", CONTENT_DIR, name);
+            // u64 file_len = 0;
+            // const char* content = read_file(&arena, path, &file_len);
+            // if (!content) {
+            //     fprintf(stderr, "Failed to read %s\n", path);
+            //     arena_release(&arena);
+            //     closedir(dir);
+            //     return 1;
+            // }
+            //
+            // // Parse metadata
+            // char* cursor = (char*)content;
+            // char* line;
+            //
+            // PageInfo* page = arena_push(&arena, sizeof(PageInfo), 1);
+            // snprintf(page->path, sizeof(page->path), "%s", name);
+            //
+            // while ((line = strsep(&cursor, "\n")) != NULL) {
+            //     line[strcspn(line, "\n")] = '\0'; // Replace newline with null terminator
+            //     if (strcmp(line, "---") == 0) break;
+            //     if (strncmp(line, "title:", 6) == 0) {
+            //         snprintf(page->title, sizeof(page->title), "%s", line + 6);
+            //     } else if (strncmp(line, "date:", 5) == 0) {
+            //         snprintf(page->date, sizeof(page->date), "%s", line + 5);
+            //     }
+            // }
+        }
+    }
+
+    closedir(dir);
+    return 0;
 
     u64 file_len = 0;
     const char* content = read_file(&arena, "blog.txt", &file_len);
