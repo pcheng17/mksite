@@ -2,7 +2,7 @@ title: Hi mom!
 date: 2026-01-18
 ---
 
-This is my first blog post. I'm going to try and make a static site generator in C.
+This is my first blog post. I'm going to try and write a tiny static site generator in C.
 
 Here's a second paragraph. Notice how blank lines separate them.
 This line continues the same paragraph since there's no blank line above.

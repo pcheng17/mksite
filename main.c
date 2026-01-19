@@ -25,7 +25,6 @@ typedef int8_t   i8;
 
 #define KB(n) ((u64)(n) << 10)
 #define MB(n) ((u64)(n) << 20)
-#define GB(n) ((u64)(n) << 30)
 
 u64 get_page_size(void) {
 #if defined(__APPLE__)
@@ -201,7 +200,7 @@ int main(int argc, char** argv) {
     PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     PRINT("  <title>%s</title>\n", title);
     PRINT("  <style>\n");
-    PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-family: sans-serif; }\n");
+    PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
     PRINT("    p { line-height: 1.5; }\n");
     PRINT("  </style>\n");
     PRINT("</head>\n");
