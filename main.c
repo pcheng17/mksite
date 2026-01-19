@@ -342,9 +342,12 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         PRINT("<body>\n");
         PRINT("  <article>\n");
         PRINT("    <h1>%s</h1>\n", page->title);
+        PRINT("    <div class=\"post-meta\">\n");
         if (page->date[0]) {
-            PRINT("    <time style=\"color: #4b5563; font-size: 0.75rem; line-height: 1rem; margin-bottom: 1rem;\">%s</time>\n", formatted_date);
+            PRINT("    <time style=\"color: #4b5563;\">%s</time>\n", formatted_date);
         }
+        PRINT("    </div>\n");
+        PRINT("    <div class=\"content\">\n");
         // clang-format on
 
         bool in_paragraph = false;
@@ -377,6 +380,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         if (in_paragraph) {
             PRINT("</p>\n");
         }
+        PRINT("    </div>\n");
         PRINT("  </article>\n");
         PRINT("</body>\n");
         PRINT("</html>\n");

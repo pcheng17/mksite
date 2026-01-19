@@ -2,4 +2,16 @@ title: Learning about snprintf
 date: 2026-01-18
 ---
 
-<code class="language-c">snprintf</code> allows you to format and store a string in a buffer.
+<code class="language-c">int snprintf ( char * s, size_t n, const char * format, ... );</code>
+
+This method composes a string with the same format as
+<code class="language-c">printf</code>,
+but instead of printing it to standard output, it writes the result to the string
+<code class="language-c">s</code>,
+which has a maximum size of <code class="language-c">n</code> bytes, <b>including the null terminator</b>.
+
+If the resulting string would be longer than <code class="language-c">n - 1</code> characters,
+it is truncated to fit, and a null terminator is added.
+
+The method returns the number of characters that would have been written if there was enough space in the buffer,
+<b>not counting the null terminator</b>.
