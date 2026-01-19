@@ -355,18 +355,22 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
     return true;
 }
 
+/// @brief Create the public directory if it doesn't exist
+bool prepare_public_dir() {
+    if (access(PUBLIC_DIR, F_OK) == -1) {
+        if (mkdir(PUBLIC_DIR, 0755) == -1) {
+            fprintf(stderr, "Failed to create %s\n", PUBLIC_DIR);
+            return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
 
-    // Check if public dir exists, if not create it
-    if (access(PUBLIC_DIR, F_OK) == -1) {
-        if (mkdir(PUBLIC_DIR, 0755) == -1) {
-            fprintf(stderr, "Failed to create %s\n", PUBLIC_DIR);
-            return 1;
-        }
-    } else {
-        LOG_ERROR("%s already exists. Please remove it before building the site.\n", PUBLIC_DIR);
+    if (!prepare_public_dir()) {
         return 1;
     }
 
