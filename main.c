@@ -21,6 +21,10 @@ typedef int16_t  i16;
 typedef int8_t   i8;
 // clang-format on
 
+#define LOG_ERROR(...) fprintf(stderr, "[ERROR] " __VA_ARGS__)
+#define LOG_WARN(...) fprintf(stderr, "[WARN] " __VA_ARGS__)
+#define LOG_INFO(...) fprintf(stderr, "[INFO] " __VA_ARGS__)
+
 #define ALIGNMENT 16
 #define ALIGN_UP_POW2(n, pow2) (((u64)(n) + ((u64)(pow2) - 1)) & (~((u64)(pow2) - 1)))
 
@@ -92,6 +96,10 @@ void* arena_push(Arena* arena, u64 size, u64 alignment) {
     const u64 newUsed = aligned_used + size;
 
     if (newUsed > arena->reserved) {
+        LOG_ERROR(
+            "Arena out of memory: requested %llu bytes, but only %llu bytes reserved\n",
+            newUsed,
+            arena->reserved);
         exit(1);
     }
 
@@ -124,6 +132,27 @@ bool arena_release(Arena* arena) {
     return result;
 }
 
+#define PATH_MAX 1024
+#define TITLE_MAX 256
+#define DATE_MAX 64
+#define PUBLIC_DIR "./public"
+#define CONTENT_DIR "./content"
+
+typedef struct {
+    char title[TITLE_MAX];
+    char date[DATE_MAX];
+    const char* content;
+} Page;
+
+#define PRINT(...) fprintf(fout, __VA_ARGS__)
+
+char* trim_leading_spaces(char* str) {
+    while (*str == ' ') {
+        str++;
+    }
+    return str;
+}
+
 char* read_file(Arena* arena, const char* path, u64* file_len) {
     FILE* f = fopen(path, "rb");
     if (!f) {
@@ -140,168 +169,228 @@ char* read_file(Arena* arena, const char* path, u64* file_len) {
     return content;
 }
 
-typedef struct {
-    char path[512];
-    char title[256];
-    char date[64];
-} PageInfo;
+u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
+    DIR* dir = opendir(dir_path);
+    if (!dir) {
+        LOG_ERROR("Failed to open directory: %s\n", dir_path);
+        return 0;
+    }
 
-#define PRINT(...) fprintf(fout, __VA_ARGS__)
+    // First pass: count pages
+    u32 page_count = 0;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        const char* name = entry->d_name;
+        const u32 len = strlen(name);
+        if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
+            ++page_count;
+        }
+    }
 
-#define BUILD_DIR "./public"
-#define CONTENT_DIR "./content"
+    LOG_INFO("Scanned %s: found %u pages\n", dir_path, page_count);
+
+    // Allocate array of pages
+    *out_pages = (Page*)arena_push(arena, sizeof(Page) * page_count, ALIGNMENT);
+
+    // Second pass: populate pages
+    rewinddir(dir);
+    u32 idx = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        const char* name = entry->d_name;
+        const u32 len = strlen(name);
+        if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
+            LOG_INFO("Importing page: %s\n", name);
+
+            Page* page = &(*out_pages)[idx++];
+
+            char full_path[PATH_MAX];
+            snprintf(full_path, PATH_MAX, "%s/%s", dir_path, name);
+
+            u64 file_len = 0;
+            const char* data = read_file(arena, full_path, &file_len);
+            if (!data) {
+                LOG_ERROR("Failed to read %s\n", full_path);
+                closedir(dir);
+                return 0;
+            }
+
+            char* start = (char*)data;
+            char* end = start + file_len;
+            while (start < end) {
+                char* line = memchr(start, '\n', end - start);
+                u64 line_len = line ? (line - start) : (end - start);
+
+                // End of metadata
+                if (line_len == 3 && strncmp(start, "---", 3) == 0) {
+                    start = line ? line + 1 : end;
+                    break;
+                }
+
+                if (strncmp(start, "title:", 6) == 0) {
+                    char* value = trim_leading_spaces(start + 6);
+                    snprintf(
+                        page->title,
+                        sizeof(page->title),
+                        "%.*s",
+                        (int)(line_len - (value - start)),
+                        value);
+                } else if (strncmp(start, "date:", 5) == 0) {
+                    char* value = trim_leading_spaces(start + 5);
+                    snprintf(
+                        page->date,
+                        sizeof(page->date),
+                        "%.*s",
+                        (int)(line_len - (value - start)),
+                        value);
+                }
+                start = line ? line + 1 : end;
+            }
+
+            page->content = start;
+        }
+    }
+
+    return page_count;
+}
+
+bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
+    for (u32 i = 0; i < page_count; ++i) {
+        Page* page = &pages[i];
+
+        char out_path[PATH_MAX];
+        int len = snprintf(out_path, sizeof(out_path), "%s/page_%u.html", dst_path, i);
+        assert(len > 0 && len < (int)sizeof(out_path));
+
+        FILE* fout = fopen(out_path, "w");
+        if (!fout) {
+            LOG_ERROR("Failed to open %s for writing\n", out_path);
+            return false;
+        }
+
+        // Output HTML
+        // clang-format off
+        PRINT("<!DOCTYPE html>\n");
+        PRINT("<html lang=\"en\">\n");
+        PRINT("<head>\n");
+        PRINT("  <meta charset=\"utf-8\">\n");
+        PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+        PRINT("  <title>%s</title>\n", page->title);
+        PRINT("  <style>\n");
+        PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
+        PRINT("    p { line-height: 1.5; }\n");
+        PRINT("  </style>\n");
+        PRINT("</head>\n");
+        PRINT("<body>\n");
+        PRINT("  <article>\n");
+        PRINT("    <h1>%s</h1>\n", page->title);
+        if (page->date[0]) {
+            PRINT("    <time>%s</time>\n", page->date);
+        }
+        // clang-format on
+
+        bool in_paragraph = false;
+
+        char* cursor = (char*)page->content;
+
+        while (*cursor) {
+            // Find end of line
+            char* eol = strchr(cursor, '\n');
+            int len = eol ? (int)(eol - cursor) : strlen(cursor);
+
+            if (len == 0) {
+                if (in_paragraph) {
+                    PRINT("</p>\n");
+                    in_paragraph = false;
+                }
+            } else {
+                if (!in_paragraph) {
+                    PRINT("    <p>");
+                    in_paragraph = true;
+                } else {
+                    PRINT(" ");
+                }
+                PRINT("%.*s", len, cursor); // print exactly len chars
+            }
+
+            cursor += eol ? len + 1 : len; // skip past newline if present
+        }
+
+        if (in_paragraph) {
+            PRINT("</p>\n");
+        }
+        PRINT("  </article>\n");
+        PRINT("</body>\n");
+        PRINT("</html>\n");
+
+        fclose(fout);
+    }
+
+    return true;
+}
 
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
 
-    // Check if build dir exists, if not create it
-    if (access(BUILD_DIR, F_OK) == -1) {
-        if (mkdir(BUILD_DIR, 0755) == -1) {
-            fprintf(stderr, "Failed to create %s\n", BUILD_DIR);
+    // Check if public dir exists, if not create it
+    if (access(PUBLIC_DIR, F_OK) == -1) {
+        if (mkdir(PUBLIC_DIR, 0755) == -1) {
+            fprintf(stderr, "Failed to create %s\n", PUBLIC_DIR);
             return 1;
         }
     }
 
-    Arena arena = arena_create(KB(1));
-
-    DIR *dir = opendir(CONTENT_DIR);
+    DIR* dir = opendir(CONTENT_DIR);
     if (!dir) {
         fprintf(stderr, "Failed to open content directory: %s\n", CONTENT_DIR);
         return 1;
     }
 
-    PageInfo* pages;
+    Arena arena = arena_create(KB(1));
 
-    struct dirent *entry;
+    struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        const char *name = entry->d_name;
-        u32 len = strlen(name);
-        if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
-            printf("Found file: %s\n", name);
+        const char* dname = entry->d_name;
 
-            // Read file
-            // char path[512];
-            // snprintf(path, sizeof(path), "%s/%s", CONTENT_DIR, name);
-            // u64 file_len = 0;
-            // const char* content = read_file(&arena, path, &file_len);
-            // if (!content) {
-            //     fprintf(stderr, "Failed to read %s\n", path);
-            //     arena_release(&arena);
-            //     closedir(dir);
-            //     return 1;
-            // }
-            //
-            // // Parse metadata
-            // char* cursor = (char*)content;
-            // char* line;
-            //
-            // PageInfo* page = arena_push(&arena, sizeof(PageInfo), 1);
-            // snprintf(page->path, sizeof(page->path), "%s", name);
-            //
-            // while ((line = strsep(&cursor, "\n")) != NULL) {
-            //     line[strcspn(line, "\n")] = '\0'; // Replace newline with null terminator
-            //     if (strcmp(line, "---") == 0) break;
-            //     if (strncmp(line, "title:", 6) == 0) {
-            //         snprintf(page->title, sizeof(page->title), "%s", line + 6);
-            //     } else if (strncmp(line, "date:", 5) == 0) {
-            //         snprintf(page->date, sizeof(page->date), "%s", line + 5);
-            //     }
-            // }
+        if (strcmp(dname, ".") == 0 || strcmp(dname, "..") == 0) {
+            continue;
         }
-    }
 
-    closedir(dir);
-    return 0;
+        if (entry->d_type == DT_DIR) {
+            char src_path[PATH_MAX];
+            char dst_path[PATH_MAX];
+            snprintf(src_path, PATH_MAX, "%s/%s", CONTENT_DIR, dname);
+            snprintf(dst_path, PATH_MAX, "%s/%s", PUBLIC_DIR, dname);
 
-    u64 file_len = 0;
-    const char* content = read_file(&arena, "blog.txt", &file_len);
-    if (!content) {
-        fprintf(stderr, "Failed to read blog.txt\n");
-        arena_release(&arena);
-        return 1;
-    }
+            printf("%s -> %s\n", src_path, dst_path);
 
-    char* cursor = (char*)content;
-    char* line;
-
-    char title[128];
-    char date[64];
-    while ((line = strsep(&cursor, "\n")) != NULL) {
-        line[strcspn(line, "\n")] = '\0'; // Replace newline with null terminator
-        if (strcmp(line, "---") == 0) break;
-        if (strncmp(line, "title:", 6) == 0) {
-            snprintf(title, sizeof(title), "%s", line + 6);
-        } else if (strncmp(line, "date:", 5) == 0) {
-            snprintf(date, sizeof(date), "%s", line + 5);
-        }
-    }
-
-    char out_path[256];
-    int len = snprintf(out_path, sizeof(out_path), "%s/index.html", BUILD_DIR);
-    assert(len > 0 && len < (int)sizeof(out_path));
-
-    FILE* fout = fopen(out_path, "w");
-    if (!fout) {
-        fprintf(stderr, "Failed to open %s for writing\n", out_path);
-        arena_release(&arena);
-        return 1;
-    }
-
-    // Output HTML
-    // clang-format off
-    PRINT("<!DOCTYPE html>\n");
-    PRINT("<html lang=\"en\">\n");
-    PRINT("<head>\n");
-    PRINT("  <meta charset=\"utf-8\">\n");
-    PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    PRINT("  <title>%s</title>\n", title);
-    PRINT("  <style>\n");
-    PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
-    PRINT("    p { line-height: 1.5; }\n");
-    PRINT("  </style>\n");
-    PRINT("</head>\n");
-    PRINT("<body>\n");
-    PRINT("  <article>\n");
-    PRINT("    <h1>%s</h1>\n", title);
-    if (date[0]) {
-        PRINT("    <time>%s</time>\n", date);
-    }
-    // clang-format on
-
-    bool in_paragraph = false;
-
-    while (*cursor) {
-        // Find end of line
-        char* eol = strchr(cursor, '\n');
-        int len = eol ? (int)(eol - cursor) : strlen(cursor);
-
-        if (len == 0) {
-            if (in_paragraph) {
-                PRINT("</p>\n");
-                in_paragraph = false;
+            Page* pages = NULL;
+            u32 page_count = import_pages(src_path, &arena, &pages);
+            if (page_count == 0) {
+                LOG_ERROR("Failed to import pages from %s\n", src_path);
+                arena_release(&arena);
+                closedir(dir);
+                return 1;
             }
-        } else {
-            if (!in_paragraph) {
-                PRINT("    <p>");
-                in_paragraph = true;
-            } else {
-                PRINT(" ");
+
+            if (access(dst_path, F_OK) == -1) {
+                if (mkdir(dst_path, 0755) == -1) {
+                    LOG_ERROR("Failed to create directory: %s\n", dst_path);
+                    arena_release(&arena);
+                    closedir(dir);
+                    return 1;
+                }
             }
-            PRINT("%.*s", len, cursor); // print exactly len chars
+
+            if (!build_pages(dst_path, pages, page_count)) {
+                LOG_ERROR("Failed to build pages to %s\n", dst_path);
+                arena_release(&arena);
+                closedir(dir);
+                return 1;
+            }
         }
-
-        cursor += eol ? len + 1 : len; // skip past newline if present
     }
 
-    if (in_paragraph) {
-        PRINT("</p>\n");
-    }
-    PRINT("  </article>\n");
-    PRINT("</body>\n");
-    PRINT("</html>\n");
-
-    fclose(fout);
     arena_release(&arena);
 
     clock_gettime(CLOCK_MONOTONIC, &t_end);
