@@ -27,3 +27,14 @@ ul {
   margin-bottom: 1.7rem;
 }
 
+a {
+  color: #a00000;
+  text-decoration: none;
+}
+
+a:hover {
+  /* color: #006a80; */
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
