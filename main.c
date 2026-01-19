@@ -425,7 +425,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    Arena arena = arena_create(KB(1));
+    Arena arena = arena_create(KB(16));
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
