@@ -139,6 +139,14 @@ bool arena_release(Arena* arena) {
 #define PUBLIC_DIR "./public"
 #define CONTENT_DIR "./content"
 
+const char* STYLE_CSS =
+    "<style>\n"
+    "html { scroll-behavior: smooth; }"
+    "body { background-color: #f5f1eb; max-width: 760px; margin: 0 auto; padding: 1rem; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); --webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }"
+    "p { line-height: 1.5; }"
+    "ul { line-height: 1.5; }"
+    "</style>";
+
 typedef struct {
     char title[TITLE_MAX];
     char slug[TITLE_MAX];
@@ -302,10 +310,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         PRINT("  <meta charset=\"utf-8\">\n");
         PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
         PRINT("  <title>%s</title>\n", page->title);
-        PRINT("  <style>\n");
-        PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
-        PRINT("    p { line-height: 1.5; }\n");
-        PRINT("  </style>\n");
+        PRINT("  %s\n", STYLE_CSS);
         PRINT("</head>\n");
         PRINT("<body>\n");
         PRINT("  <article>\n");
@@ -383,11 +388,7 @@ bool build_index(Page* pages, u32 page_count) {
     PRINT("  <meta charset=\"utf-8\">\n");
     PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     PRINT("  <title>Blog Index</title>\n");
-    PRINT("  <style>\n");
-    PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
-    PRINT("    p { line-height: 1.5; }\n");
-    PRINT("    ul { line-height: 1.5; }\n");
-    PRINT("  </style>\n");
+    PRINT("  %s\n", STYLE_CSS);
     PRINT("</head>\n");
     PRINT("<body>\n");
     PRINT("  <h1>Blog Posts</h1>\n");
