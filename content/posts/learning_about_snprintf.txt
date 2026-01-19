@@ -1,5 +1,5 @@
-title: Learning about snprintf in C
+title: Learning about snprintf
 date: 2026-01-18
 ---
 
-<code class="language-c">snprintf</code> is a function in the C programming language that allows you to format and store a string in a buffer.
+<code class="language-c">snprintf</code> allows you to format and store a string in a buffer.

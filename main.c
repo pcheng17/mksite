@@ -155,7 +155,7 @@ char* trim_leading_spaces(char* str) {
     return str;
 }
 
-void slugify(const char *input, char *output, u32 output_size) {
+void slugify(const char* input, char* output, u32 output_size) {
     u32 j = 0;
     bool prev_was_dash = true; // Start true to skip leading dashes
 
@@ -366,6 +366,51 @@ bool prepare_public_dir() {
     return true;
 }
 
+bool build_index(Page* pages, u32 page_count) {
+    char index_path[PATH_MAX];
+    snprintf(index_path, PATH_MAX, "%s/index.html", PUBLIC_DIR);
+
+    FILE* fout = fopen(index_path, "w");
+    if (!fout) {
+        LOG_ERROR("Failed to open %s for writing\n", index_path);
+        return false;
+    }
+
+    // Output HTML header
+    PRINT("<!DOCTYPE html>\n");
+    PRINT("<html lang=\"en\">\n");
+    PRINT("<head>\n");
+    PRINT("  <meta charset=\"utf-8\">\n");
+    PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    PRINT("  <title>Blog Index</title>\n");
+    PRINT("  <style>\n");
+    PRINT("    body { max-width: 760px; margin: 2em auto; padding: 0 1em; font-size: 14px; font-family: \"Lucida Grande\", sans-serif; color: rgb(51, 51, 51); }\n");
+    PRINT("    p { line-height: 1.5; }\n");
+    PRINT("    ul { line-height: 1.5; }\n");
+    PRINT("  </style>\n");
+    PRINT("</head>\n");
+    PRINT("<body>\n");
+    PRINT("  <h1>Blog Posts</h1>\n");
+    PRINT("  <ul>\n");
+
+    for (u32 i = 0; i < page_count; ++i) {
+        Page* page = &pages[i];
+        PRINT(
+            "    <li><a href=\"posts/%s.html\">%s</a> - <time>%s</time></li>\n",
+            page->slug,
+            page->title,
+            page->date);
+    }
+
+    // Output HTML footer
+    PRINT("  </ul>\n");
+    PRINT("</body>\n");
+    PRINT("</html>\n");
+
+    fclose(fout);
+    return true;
+}
+
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
@@ -398,6 +443,7 @@ int main(int argc, char** argv) {
 
             Page* pages = NULL;
             u32 page_count = import_pages(src_path, &arena, &pages);
+
             if (page_count == 0) {
                 LOG_ERROR("Failed to import pages from %s\n", src_path);
                 arena_release(&arena);
@@ -420,7 +466,15 @@ int main(int argc, char** argv) {
                 closedir(dir);
                 return 1;
             }
+
+            // If we're processing the `posts` directory, also build an index.html
+            if (strcmp(dname, "posts") == 0) {
+                build_index(pages, page_count);
+            }
         }
+
+        // We can clear the arena after each directory is processed
+        arena_clear(&arena);
     }
 
     arena_release(&arena);
