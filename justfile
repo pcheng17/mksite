@@ -8,4 +8,4 @@ run:
     cmake --build build && ./build/mksite
 
 watch:
-    watchexec -c -r -e h,c,txt "cmake --build build && ./build/mksite"
+    watchexec -c -r -e h,c,txt,css "rm -rf ./public && cmake --build build && ./build/mksite"
