@@ -4,10 +4,10 @@ html {
 
 body {
   background-color: #f5f1eb;
-  max-width: 760px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 1rem;
-  font-size: 16px;
+  font-size: 15px;
   font-family: "Lucida Grande", sans-serif;
   color: rgb(51, 51, 51);
   -webkit-font-smoothing: antialiased;
@@ -65,15 +65,16 @@ table.archive td {
 }
 
 table.archive td.time {
-  color: #888;
-  font-family: monospace;
+  color: #999;
   font-size: 0.9rem;
-  width: 1%;
-  white-space: nowrap;
-  padding-right: 4rem;
+  font-family: monospace;
+  width: 8rem;
+  min-width: 8rem;
+  padding-right: 1rem;
 }
 
-table.archive td:last-child {
-  color: #999;
-  font-size: 0.9em;
+table.archive td.title {
+  width: 22rem;
+  min-width: 22rem;
+  padding-right: 1rem;
 }

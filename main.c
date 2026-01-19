@@ -433,7 +433,7 @@ bool build_index(Page* pages, u32 page_count) {
     PRINT("  <h1>Blog Posts</h1>\n");
 
     PRINT("  <table class=\"archive\">\n");
-    PRINT("    <thead><tr><th>date</th><th>title</th></tr></thead>\n");
+    PRINT("    <thead><tr><th>date</th><th>title</th><th>tags</th></tr></thead>\n");
     PRINT("      <tbody>\n");
     for (u32 i = 0; i < page_count; ++i) {
         Page* page = &pages[i];
