@@ -12,7 +12,6 @@ BinPackArguments: false
 BinPackParameters: false
 BitFieldColonSpacing: Both
 ColumnLimit: 100
-DerivePointerAlignment: true
 IndentWidth: 4
 IndentCaseLabels: false
 FixNamespaceComments: true

@@ -39,20 +39,20 @@ u64 get_page_size(void) {
 #endif
 }
 
-void *reserve_memory(u64 size) {
+void* reserve_memory(u64 size) {
 #if defined(__APPLE__)
     return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 #endif
 }
 
-void *commit_memory(void *addr, u64 size) {
+void* commit_memory(void* addr, u64 size) {
 #if defined(__APPLE__)
     // On macOS, memory is committed on access, so just return the address
     return addr;
 #endif
 }
 
-bool decommit_memory(void *addr, u64 size) {
+bool decommit_memory(void* addr, u64 size) {
 #if defined(__APPLE__)
     // On macOS, we can use madvise to indicate that the memory is no longer
     // needed
@@ -60,14 +60,14 @@ bool decommit_memory(void *addr, u64 size) {
 #endif
 }
 
-bool release_memory(void *addr, u64 size) {
+bool release_memory(void* addr, u64 size) {
 #if defined(__APPLE__)
     return munmap(addr, size) == 0;
 #endif
 }
 
 typedef struct {
-    void *base;
+    void* base;
     u64 reserved;
     u64 committed;
     u64 used;
@@ -77,7 +77,7 @@ Arena arena_create(u64 reserve_size) {
     const u64 page_size = get_page_size();
     reserve_size = ALIGN_UP_POW2(reserve_size, page_size);
 
-    void *base = reserve_memory(reserve_size);
+    void* base = reserve_memory(reserve_size);
     if (base == NULL) {
         exit(1);
     }
@@ -92,7 +92,7 @@ Arena arena_create(u64 reserve_size) {
     // clang-format on
 }
 
-void *arena_push(Arena *arena, u64 size, u64 alignment) {
+void* arena_push(Arena* arena, u64 size, u64 alignment) {
     assert((alignment & (alignment - 1)) == 0); // alignment must be power of 2
 
     const u64 aligned_used = ALIGN_UP_POW2(arena->used, alignment);
@@ -113,7 +113,7 @@ void *arena_push(Arena *arena, u64 size, u64 alignment) {
         // and `arena->reserved` is is already aligned to page size. Therefore,
         // `new_commit` will also be <= `arena->reserved`.
         const u64 new_commit = ALIGN_UP_POW2(newUsed, page_size);
-        char *start = (char *)arena->base + arena->committed;
+        char* start = (char*)arena->base + arena->committed;
         u64 commit_size = new_commit - arena->committed;
         if (commit_memory(start, commit_size) == NULL) {
             exit(1);
@@ -121,16 +121,16 @@ void *arena_push(Arena *arena, u64 size, u64 alignment) {
         arena->committed = new_commit;
     }
 
-    void *result = (char *)arena->base + aligned_used;
+    void* result = (char*)arena->base + aligned_used;
     arena->used = newUsed;
     return result;
 }
 
-void arena_clear(Arena *arena) {
+void arena_clear(Arena* arena) {
     arena->used = 0;
 }
 
-bool arena_release(Arena *arena) {
+bool arena_release(Arena* arena) {
     const bool result = release_memory(arena->base, arena->reserved);
     *arena = (Arena){0};
     return result;
@@ -143,7 +143,7 @@ bool arena_release(Arena *arena) {
 #define CONTENT_DIR "./content"
 
 // clang-format off
-const char *MONTHS[] = {
+const char* MONTHS[] = {
     "January",
     "February",
     "March",
@@ -159,7 +159,7 @@ const char *MONTHS[] = {
 };
 // clang-format on
 
-bool format_date(const char *iso_date, char out[32]) {
+bool format_date(const char* iso_date, char out[32]) {
     i32 year, month, day;
     if (sscanf(iso_date, "%d-%d-%d", &year, &month, &day) != 3) {
         return false;
@@ -172,19 +172,19 @@ typedef struct {
     char title[TITLE_MAX];
     char slug[TITLE_MAX];
     char date[DATE_MAX];
-    const char *content;
+    const char* content;
 } Page;
 
 #define PRINT(...) fprintf(fout, __VA_ARGS__)
 
-char *trim_leading_spaces(char *str) {
+char* trim_leading_spaces(char* str) {
     while (*str == ' ') {
         str++;
     }
     return str;
 }
 
-void slugify(const char *input, char *output, u32 output_size) {
+void slugify(const char* input, char* output, u32 output_size) {
     u32 j = 0;
     bool prev_was_dash = true; // Start true to skip leading dashes
 
@@ -208,8 +208,8 @@ void slugify(const char *input, char *output, u32 output_size) {
     output[j] = '\0';
 }
 
-char *read_file(Arena *arena, const char *path, u64 *file_len) {
-    FILE *f = fopen(path, "rb");
+char* read_file(Arena* arena, const char* path, u64* file_len) {
+    FILE* f = fopen(path, "rb");
     if (!f) {
         return NULL;
     }
@@ -217,15 +217,15 @@ char *read_file(Arena *arena, const char *path, u64 *file_len) {
     *file_len = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char *content = arena_push(arena, *file_len + 1, ALIGNMENT);
+    char* content = arena_push(arena, *file_len + 1, ALIGNMENT);
     fread(content, 1, *file_len, f);
     content[*file_len] = '\0'; // null-terminate
     fclose(f);
     return content;
 }
 
-u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
-    DIR *dir = opendir(dir_path);
+u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
+    DIR* dir = opendir(dir_path);
     if (!dir) {
         LOG_ERROR("Failed to open directory: %s\n", dir_path);
         return 0;
@@ -233,9 +233,9 @@ u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
 
     // First pass: count pages
     u32 page_count = 0;
-    struct dirent *entry;
+    struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        const char *name = entry->d_name;
+        const char* name = entry->d_name;
         const u32 len = strlen(name);
         if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
             ++page_count;
@@ -245,34 +245,34 @@ u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
     LOG_INFO("Scanned %s: found %u pages\n", dir_path, page_count);
 
     // Allocate array of pages
-    *out_pages = (Page *)arena_push(arena, sizeof(Page) * page_count, ALIGNMENT);
+    *out_pages = (Page*)arena_push(arena, sizeof(Page) * page_count, ALIGNMENT);
 
     // Second pass: populate pages
     rewinddir(dir);
     u32 idx = 0;
     while ((entry = readdir(dir)) != NULL) {
-        const char *name = entry->d_name;
+        const char* name = entry->d_name;
         const u32 len = strlen(name);
         if (len > 4 && strcmp(name + len - 4, ".txt") == 0) {
             LOG_INFO("Importing page: %s\n", name);
 
-            Page *page = &(*out_pages)[idx++];
+            Page* page = &(*out_pages)[idx++];
 
             char full_path[PATH_MAX];
             snprintf(full_path, PATH_MAX, "%s/%s", dir_path, name);
 
             u64 file_len = 0;
-            const char *data = read_file(arena, full_path, &file_len);
+            const char* data = read_file(arena, full_path, &file_len);
             if (!data) {
                 LOG_ERROR("Failed to read %s\n", full_path);
                 closedir(dir);
                 return 0;
             }
 
-            char *start = (char *)data;
-            char *end = start + file_len;
+            char* start = (char*)data;
+            char* end = start + file_len;
             while (start < end) {
-                char *line = memchr(start, '\n', end - start);
+                char* line = memchr(start, '\n', end - start);
                 u64 line_len = line ? (line - start) : (end - start);
 
                 // End of metadata
@@ -282,7 +282,7 @@ u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
                 }
 
                 if (strncmp(start, "title:", 6) == 0) {
-                    char *value = trim_leading_spaces(start + 6);
+                    char* value = trim_leading_spaces(start + 6);
                     snprintf(
                         page->title,
                         sizeof(page->title),
@@ -291,7 +291,7 @@ u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
                         value);
                     slugify(page->title, page->slug, sizeof(page->slug));
                 } else if (strncmp(start, "date:", 5) == 0) {
-                    char *value = trim_leading_spaces(start + 5);
+                    char* value = trim_leading_spaces(start + 5);
                     snprintf(
                         page->date,
                         sizeof(page->date),
@@ -309,15 +309,15 @@ u32 import_pages(const char *dir_path, Arena *arena, Page **out_pages) {
     return page_count;
 }
 
-bool build_pages(const char *dst_path, Page *pages, u32 page_count) {
+bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
     for (u32 i = 0; i < page_count; ++i) {
-        Page *page = &pages[i];
+        Page* page = &pages[i];
 
         char out_path[PATH_MAX];
         int len = snprintf(out_path, sizeof(out_path), "%s/%s.html", dst_path, page->slug);
         assert(len > 0 && len < (int)sizeof(out_path));
 
-        FILE *fout = fopen(out_path, "w");
+        FILE* fout = fopen(out_path, "w");
         if (!fout) {
             LOG_ERROR("Failed to open %s for writing\n", out_path);
             return false;
@@ -349,11 +349,11 @@ bool build_pages(const char *dst_path, Page *pages, u32 page_count) {
 
         bool in_paragraph = false;
 
-        char *cursor = (char *)page->content;
+        char* cursor = (char*)page->content;
 
         while (*cursor) {
             // Find end of line
-            char *eol = strchr(cursor, '\n');
+            char* eol = strchr(cursor, '\n');
             int len = eol ? (int)(eol - cursor) : strlen(cursor);
 
             if (len == 0) {
@@ -398,11 +398,11 @@ bool prepare_public_dir() {
     return true;
 }
 
-bool build_index(Page *pages, u32 page_count) {
+bool build_index(Page* pages, u32 page_count) {
     char index_path[PATH_MAX];
     snprintf(index_path, PATH_MAX, "%s/index.html", PUBLIC_DIR);
 
-    FILE *fout = fopen(index_path, "w");
+    FILE* fout = fopen(index_path, "w");
     if (!fout) {
         LOG_ERROR("Failed to open %s for writing\n", index_path);
         return false;
@@ -424,7 +424,7 @@ bool build_index(Page *pages, u32 page_count) {
     PRINT("  <ul>\n");
 
     for (u32 i = 0; i < page_count; ++i) {
-        Page *page = &pages[i];
+        Page* page = &pages[i];
         PRINT(
             "    <li><a href=\"posts/%s.html\">%s</a> - <time>%s</time></li>\n",
             page->slug,
@@ -441,7 +441,7 @@ bool build_index(Page *pages, u32 page_count) {
     return true;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
 
@@ -449,7 +449,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    DIR *dir = opendir(CONTENT_DIR);
+    DIR* dir = opendir(CONTENT_DIR);
     if (!dir) {
         fprintf(stderr, "Failed to open content directory: %s\n", CONTENT_DIR);
         return 1;
@@ -457,9 +457,9 @@ int main(int argc, char **argv) {
 
     Arena arena = arena_create(KB(16));
 
-    struct dirent *entry;
+    struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        const char *dname = entry->d_name;
+        const char* dname = entry->d_name;
 
         if (strcmp(dname, ".") == 0 || strcmp(dname, "..") == 0) {
             continue;
@@ -471,7 +471,7 @@ int main(int argc, char **argv) {
             snprintf(src_path, PATH_MAX, "%s/%s", CONTENT_DIR, dname);
             snprintf(dst_path, PATH_MAX, "%s/%s", PUBLIC_DIR, dname);
 
-            Page *pages = NULL;
+            Page* pages = NULL;
             u32 page_count = import_pages(src_path, &arena, &pages);
 
             if (page_count == 0) {
