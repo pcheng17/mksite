@@ -7,11 +7,15 @@ body {
   max-width: 760px;
   margin: 0 auto;
   padding: 1rem;
-  font-size: 14px;
+  font-size: 16px;
   font-family: "Lucida Grande", sans-serif;
   color: rgb(51, 51, 51);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1 {
+  line-height: 6rem;
 }
 
 p {
@@ -23,7 +27,7 @@ ul {
 }
 
 .post-meta {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   margin-bottom: 1.7rem;
 }
 
@@ -38,3 +42,38 @@ a:hover {
   text-underline-offset: 2px;
 }
 
+table.archive {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+}
+
+table.archive thead th {
+  color: #999;
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: normal;
+  padding-bottom: 0.25rem;
+}
+
+table.archive tr {
+  border-bottom: 1px solid #ddd;
+}
+
+table.archive td {
+  padding: 0.5rem 0;
+}
+
+table.archive td.time {
+  color: #888;
+  font-family: monospace;
+  font-size: 0.9rem;
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 4rem;
+}
+
+table.archive td:last-child {
+  color: #999;
+  font-size: 0.9em;
+}

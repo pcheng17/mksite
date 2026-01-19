@@ -175,6 +175,12 @@ typedef struct {
     const char* content;
 } Page;
 
+int compare_pages_desc(const void* a, const void* b) {
+    const Page* page_a = (const Page*)a;
+    const Page* page_b = (const Page*)b;
+    return strcmp(page_b->date, page_a->date);
+}
+
 #define PRINT(...) fprintf(fout, __VA_ARGS__)
 
 char* trim_leading_spaces(char* str) {
@@ -425,19 +431,21 @@ bool build_index(Page* pages, u32 page_count) {
     PRINT("</head>\n");
     PRINT("<body>\n");
     PRINT("  <h1>Blog Posts</h1>\n");
-    PRINT("  <ul>\n");
 
+    PRINT("  <table class=\"archive\">\n");
+    PRINT("    <thead><tr><th>date</th><th>title</th></tr></thead>\n");
+    PRINT("      <tbody>\n");
     for (u32 i = 0; i < page_count; ++i) {
         Page* page = &pages[i];
         PRINT(
-            "    <li><a href=\"posts/%s.html\">%s</a> - <time>%s</time></li>\n",
+            "        <tr><td class=\"time\"><time>%s</time></td><td class=\"title\"><a href=\"posts/%s.html\">%s</a></td></tr>\n",
+            page->date,
             page->slug,
-            page->title,
-            page->date);
+            page->title);
     }
+    PRINT("    </tbody>\n");
+    PRINT("  </table>\n");
 
-    // Output HTML footer
-    PRINT("  </ul>\n");
     PRINT("</body>\n");
     PRINT("</html>\n");
 
@@ -503,6 +511,7 @@ int main(int argc, char** argv) {
 
             // If we're processing the `posts` directory, also build an index.html
             if (strcmp(dname, "posts") == 0) {
+                qsort(pages, page_count, sizeof(Page), compare_pages_desc);
                 build_index(pages, page_count);
             }
         }
