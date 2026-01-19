@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -139,11 +140,21 @@ char* read_file(Arena* arena, const char* path, u64* file_len) {
     return content;
 }
 
-#define PRINT(...) fprintf(out, __VA_ARGS__)
+#define PRINT(...) fprintf(fout, __VA_ARGS__)
+
+#define BUILD_DIR "./public"
 
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
+
+    // Check if build dir exists, if not create it
+    if (access(BUILD_DIR, F_OK) == -1) {
+        if (mkdir(BUILD_DIR, 0755) == -1) {
+            fprintf(stderr, "Failed to create %s\n", BUILD_DIR);
+            return 1;
+        }
+    }
 
     Arena arena = arena_create(KB(1));
 
@@ -170,9 +181,13 @@ int main(int argc, char** argv) {
         }
     }
 
-    FILE* out = fopen("index.html", "w");
-    if (!out) {
-        fprintf(stderr, "Failed to open index.html for writing\n");
+    char out_path[256];
+    int len = snprintf(out_path, sizeof(out_path), "%s/index.html", BUILD_DIR);
+    assert(len > 0 && len < (int)sizeof(out_path));
+
+    FILE* fout = fopen(out_path, "w");
+    if (!fout) {
+        fprintf(stderr, "Failed to open %s for writing\n", out_path);
         arena_release(&arena);
         return 1;
     }
@@ -230,7 +245,7 @@ int main(int argc, char** argv) {
     PRINT("</body>\n");
     PRINT("</html>\n");
 
-    fclose(out);
+    fclose(fout);
     arena_release(&arena);
 
     clock_gettime(CLOCK_MONOTONIC, &t_end);
