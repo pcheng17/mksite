@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -140,6 +141,7 @@ bool arena_release(Arena* arena) {
 
 typedef struct {
     char title[TITLE_MAX];
+    char slug[TITLE_MAX];
     char date[DATE_MAX];
     const char* content;
 } Page;
@@ -151,6 +153,30 @@ char* trim_leading_spaces(char* str) {
         str++;
     }
     return str;
+}
+
+void slugify(const char *input, char *output, u32 output_size) {
+    u32 j = 0;
+    bool prev_was_dash = true; // Start true to skip leading dashes
+
+    for (u32 i = 0; input[i] && j < output_size - 1; ++i) {
+        char c = input[i];
+
+        if (isalnum(c)) {
+            output[j++] = tolower(c);
+            prev_was_dash = 0;
+        } else if (!prev_was_dash) {
+            output[j++] = '-';
+            prev_was_dash = true;
+        }
+    }
+
+    // Remove trailing dash
+    if (j > 0 && output[j - 1] == '-') {
+        j--;
+    }
+
+    output[j] = '\0';
 }
 
 char* read_file(Arena* arena, const char* path, u64* file_len) {
@@ -234,6 +260,7 @@ u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
                         "%.*s",
                         (int)(line_len - (value - start)),
                         value);
+                    slugify(page->title, page->slug, sizeof(page->slug));
                 } else if (strncmp(start, "date:", 5) == 0) {
                     char* value = trim_leading_spaces(start + 5);
                     snprintf(
@@ -258,7 +285,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         Page* page = &pages[i];
 
         char out_path[PATH_MAX];
-        int len = snprintf(out_path, sizeof(out_path), "%s/page_%u.html", dst_path, i);
+        int len = snprintf(out_path, sizeof(out_path), "%s/%s.html", dst_path, page->slug);
         assert(len > 0 && len < (int)sizeof(out_path));
 
         FILE* fout = fopen(out_path, "w");
@@ -338,6 +365,9 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Failed to create %s\n", PUBLIC_DIR);
             return 1;
         }
+    } else {
+        LOG_ERROR("%s already exists. Please remove it before building the site.\n", PUBLIC_DIR);
+        return 1;
     }
 
     DIR* dir = opendir(CONTENT_DIR);
@@ -361,8 +391,6 @@ int main(int argc, char** argv) {
             char dst_path[PATH_MAX];
             snprintf(src_path, PATH_MAX, "%s/%s", CONTENT_DIR, dname);
             snprintf(dst_path, PATH_MAX, "%s/%s", PUBLIC_DIR, dname);
-
-            printf("%s -> %s\n", src_path, dst_path);
 
             Page* pages = NULL;
             u32 page_count = import_pages(src_path, &arena, &pages);
