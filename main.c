@@ -340,6 +340,42 @@ u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
     return page_count;
 }
 
+void write_formatted_line(FILE* fout, const char* text, u32 len) {
+    bool in_bold = false;
+    bool in_italic = false;
+    for (u32 i = 0; i < len; ++i) {
+        char c = text[i];
+        if (c == '*' && i + 1 < len && text[i + 1] == '*') {
+            if (in_bold) {
+                fprintf(fout, "</strong>");
+                in_bold = false;
+            } else {
+                fprintf(fout, "<strong>");
+                in_bold = true;
+            }
+            ++i; // skip next '*'
+        } else if (c == '_' && i + 1 < len && text[i + 1] == '_') {
+            if (in_italic) {
+                fprintf(fout, "</em>");
+                in_italic = false;
+            } else {
+                fprintf(fout, "<em>");
+                in_italic = true;
+            }
+            ++i; // skip next '_'
+        } else {
+            fputc(c, fout);
+        }
+    }
+
+    if (in_bold) {
+        fprintf(fout, "</strong>");
+    }
+    if (in_italic) {
+        fprintf(fout, "</em>");
+    }
+}
+
 bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
     for (u32 i = 0; i < page_count; ++i) {
         Page* page = &pages[i];
@@ -389,7 +425,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         while (*cursor) {
             // Find end of line
             char* eol = strchr(cursor, '\n');
-            int len = eol ? (int)(eol - cursor) : strlen(cursor);
+            u32 len = eol ? (u32)(eol - cursor) : strlen(cursor);
 
             if (len == 0) {
                 if (in_paragraph) {
@@ -403,7 +439,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
                 } else {
                     PRINT(" ");
                 }
-                PRINT("%.*s", len, cursor); // print exactly len chars
+                write_formatted_line(fout, cursor, len);
             }
 
             cursor += eol ? len + 1 : len; // skip past newline if present
