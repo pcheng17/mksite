@@ -413,6 +413,18 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
     }
 }
 
+void write_html_head(FILE* fout, const char* title) {
+    PRINT("<!DOCTYPE html>\n");
+    PRINT("<html lang=\"en\">\n");
+    PRINT("<head>\n");
+    PRINT("  <meta charset=\"utf-8\">\n");
+    PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    PRINT("  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n");
+    PRINT("  <title>%s</title>\n", title);
+    PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
+    PRINT("</head>\n");
+}
+
 bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
     for (u32 i = 0; i < page_count; ++i) {
         Page* page = &pages[i];
@@ -435,15 +447,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
 
         // Output HTML
         // clang-format off
-        PRINT("<!DOCTYPE html>\n");
-        PRINT("<html lang=\"en\">\n");
-        PRINT("<head>\n");
-        PRINT("  <meta charset=\"utf-8\">\n");
-        PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-        PRINT("  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n");
-        PRINT("  <title>%s</title>\n", page->title);
-        PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
-        PRINT("</head>\n");
+        write_html_head(fout, page->title);
         PRINT("<body>\n");
         PRINT("  <article>\n");
         PRINT("    <h1>%s</h1>\n", page->title);
@@ -519,15 +523,7 @@ bool build_index(Page* pages, u32 page_count) {
 
     // Output HTML header
     // clang-format off
-    PRINT("<!DOCTYPE html>\n");
-    PRINT("<html lang=\"en\">\n");
-    PRINT("<head>\n");
-    PRINT("  <meta charset=\"utf-8\">\n");
-    PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    PRINT("  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n");
-    PRINT("  <title>Blog Index</title>\n");
-    PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
-    PRINT("</head>\n");
+    write_html_head(fout, "Blog Index");
     PRINT("<body>\n");
     PRINT("  <h1>Blog Posts</h1>\n");
     PRINT("  <table class=\"archive\">\n");
