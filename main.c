@@ -385,6 +385,9 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
     if (in_italic) {
         fprintf(fout, "</em>");
     }
+    if (in_highlight) {
+        fprintf(fout, "</mark>");
+    }
 }
 
 bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
