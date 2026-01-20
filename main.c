@@ -374,7 +374,30 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
                 in_highlight = true;
             }
             ++i; // skip next '='
-        } else {
+        }
+        // else if (c == '[' && i + 1 < len && text[i + 1] == '[') {
+        //     // Link start
+        //     u32 j = i + 2;
+        //     while (j + 1 < len && !(text[j] == ']' && text[j + 1] == ']')) {
+        //         ++j;
+        //     }
+        //     if (j + 1 < len) {
+        //         // Found closing brackets
+        //         u32 link_len = j - (i + 2);
+        //         char* link_text = (char*)malloc(link_len + 1);
+        //         strncpy(link_text, &text[i + 2], link_len);
+        //         link_text[link_len] = '\0';
+        //
+        //         // For simplicity, use the link text as the href
+        //         fprintf(fout, "<a href=\"%s\">%s</a>", link_text, link_text);
+        //         free(link_text);
+        //         i = j + 1; // Move past closing brackets
+        //     } else {
+        //         // No closing brackets found, treat as normal text
+        //         fputc(c, fout);
+        //     }
+        // }
+        else {
             fputc(c, fout);
         }
     }
