@@ -141,9 +141,10 @@ bool arena_release(Arena* arena) {
 #define DATE_MAX 64
 #define PUBLIC_DIR "./public"
 #define CONTENT_DIR "./content"
+#define ASSET_DIR "./assets"
 
 // clang-format off
-const char* MONTHS[] = {
+const char* MONTHS_FULL[] = {
     "January",
     "February",
     "March",
@@ -157,15 +158,39 @@ const char* MONTHS[] = {
     "November",
     "December"
 };
+
+const char* MONTHS_ABBR[] = {
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec"
+};
 // clang-format on
 
-bool format_date(const char* iso_date, char out[32]) {
+bool format_date(const char* iso_date, const char* dict[], char out[32]) {
     i32 year, month, day;
     if (sscanf(iso_date, "%d-%d-%d", &year, &month, &day) != 3) {
         return false;
     }
-    snprintf(out, 32, "%s %2d, %04d", MONTHS[month - 1], day, year);
+    assert(month >= 1 && month <= 12);
+    snprintf(out, 32, "%s %2d, %04d", dict[month - 1], day, year);
     return true;
+}
+
+bool format_date_full(const char* iso_date, char out[32]) {
+    return format_date(iso_date, MONTHS_FULL, out);
+}
+
+bool format_date_abbr(const char* iso_date, char out[32]) {
+    return format_date(iso_date, MONTHS_ABBR, out);
 }
 
 typedef struct {
@@ -330,7 +355,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         }
 
         char formatted_date[32];
-        if (page->date[0] && !format_date(page->date, formatted_date)) {
+        if (page->date[0] && !format_date_full(page->date, formatted_date)) {
             LOG_WARN("Invalid date format in page %s: %s\n", page->slug, page->date);
             formatted_date[0] = '\0';
         }
@@ -342,6 +367,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
         PRINT("<head>\n");
         PRINT("  <meta charset=\"utf-8\">\n");
         PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+        PRINT("  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n");
         PRINT("  <title>%s</title>\n", page->title);
         PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
         PRINT("</head>\n");
@@ -425,6 +451,7 @@ bool build_index(Page* pages, u32 page_count) {
     PRINT("<head>\n");
     PRINT("  <meta charset=\"utf-8\">\n");
     PRINT("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    PRINT("  <link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\" />\n");
     PRINT("  <title>Blog Index</title>\n");
     PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
     PRINT("</head>\n");
@@ -435,8 +462,13 @@ bool build_index(Page* pages, u32 page_count) {
     PRINT("      <tbody>\n");
     for (u32 i = 0; i < page_count; ++i) {
         const Page* page = &pages[i];
+        char formatted_date[32];
+        if (page->date[0] && !format_date_abbr(page->date, formatted_date)) {
+            LOG_WARN("Invalid date format in page %s: %s\n", page->slug, page->date);
+            formatted_date[0] = '\0';
+        }
         PRINT("        <tr>\n");
-        PRINT("          <td class=\"date\">%s</td>\n", page->date);
+        PRINT("          <td class=\"date\">%s</td>\n", formatted_date);
         PRINT("          <td class=\"title\"><a href=\"posts/%s.html\">%s</a></td>\n", page->slug, page->title);
         PRINT("        </tr>\n");
     }
@@ -450,11 +482,43 @@ bool build_index(Page* pages, u32 page_count) {
     return true;
 }
 
+bool install_favicon() {
+    const char* src_favicon_path = ASSET_DIR "/favicon.svg";
+    const char* dst_favicon_path = PUBLIC_DIR "/favicon.svg";
+
+    FILE* src_favicon = fopen(src_favicon_path, "rb");
+    if (!src_favicon) {
+        LOG_ERROR("Failed to open favicon source: %s\n", src_favicon_path);
+        return false;
+    }
+
+    FILE* dst_favicon = fopen(dst_favicon_path, "wb");
+    if (!dst_favicon) {
+        LOG_ERROR("Failed to open favicon destination: %s\n", dst_favicon_path);
+        fclose(src_favicon);
+        return false;
+    }
+
+    char buffer[4096];
+    u64 bytes;
+    while ((bytes = fread(buffer, 1, sizeof(buffer), src_favicon)) > 0) {
+        fwrite(buffer, 1, bytes, dst_favicon);
+    }
+
+    fclose(src_favicon);
+    fclose(dst_favicon);
+    return true;
+}
+
 int main(int argc, char** argv) {
     struct timespec t_start, t_end;
     clock_gettime(CLOCK_MONOTONIC, &t_start);
 
     if (!prepare_public_dir()) {
+        return 1;
+    }
+
+    if (!install_favicon()) {
         return 1;
     }
 
