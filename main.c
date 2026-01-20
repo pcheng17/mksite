@@ -343,6 +343,8 @@ u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
 void write_formatted_line(FILE* fout, const char* text, u32 len) {
     bool in_bold = false;
     bool in_italic = false;
+    bool in_highlight = false;
+
     for (u32 i = 0; i < len; ++i) {
         char c = text[i];
         if (c == '*' && i + 1 < len && text[i + 1] == '*') {
@@ -363,6 +365,15 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
                 in_italic = true;
             }
             ++i; // skip next '_'
+        } else if (c == '=' && i + 1 < len && text[i + 1] == '=') {
+            if (in_highlight) {
+                fprintf(fout, "</mark>");
+                in_highlight = false;
+            } else {
+                fprintf(fout, "<mark>");
+                in_highlight = true;
+            }
+            ++i; // skip next '='
         } else {
             fputc(c, fout);
         }

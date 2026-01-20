@@ -13,5 +13,5 @@ which has a maximum size of <code class="language-c">n</code> bytes, **including
 If the resulting string would be longer than <code class="language-c">n-1</code> characters,
 it is truncated to fit, and a null terminator is added; hence, the <code class="language-c">n-1</code>.
 
-The  method returns the number of characters that would have been written if there was enough space in the buffer,
+The method returns the number of characters that would have been written if there was enough space in the buffer,
 **not counting the null terminator**.
