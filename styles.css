@@ -31,6 +31,17 @@ ul {
   margin-bottom: 1.7rem;
 }
 
+header {
+  background-color: #fff;
+  padding: 2rem 0.5rem 0.4rem 0.5rem;
+}
+
+header nav a {
+  font-size: 0.85rem;
+  font-family: monospace;
+  color: #444;
+}
+
 a {
   color: #a00000;
   text-decoration: none;

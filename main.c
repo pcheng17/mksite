@@ -143,6 +143,8 @@ bool arena_release(Arena* arena) {
 #define CONTENT_DIR "./content"
 #define ASSET_DIR "./assets"
 
+#define SITE_URL "journal.willcodeforboba.dev"
+
 // clang-format off
 const char* MONTHS_FULL[] = {
     "January",
@@ -413,7 +415,7 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
     }
 }
 
-void write_html_head(FILE* fout, const char* title) {
+void html_write_head(FILE* fout, const char* title) {
     PRINT("<!DOCTYPE html>\n");
     PRINT("<html lang=\"en\">\n");
     PRINT("<head>\n");
@@ -423,6 +425,14 @@ void write_html_head(FILE* fout, const char* title) {
     PRINT("  <title>%s</title>\n", title);
     PRINT("  <style>\n%.*s\n</style>\n", styles_css_len, styles_css);
     PRINT("</head>\n");
+}
+
+void html_write_header(FILE* fout) {
+    PRINT("<header>\n");
+    PRINT("  <nav>\n");
+    PRINT("    <a href=\"/\">%s</a>\n", SITE_URL);
+    PRINT("  </nav>\n");
+    PRINT("</header>\n");
 }
 
 bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
@@ -447,8 +457,9 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
 
         // Output HTML
         // clang-format off
-        write_html_head(fout, page->title);
+        html_write_head(fout, page->title);
         PRINT("<body>\n");
+        // html_write_header(fout);
         PRINT("  <article>\n");
         PRINT("    <h1>%s</h1>\n", page->title);
         PRINT("    <div class=\"post-meta\">\n");
@@ -523,8 +534,9 @@ bool build_index(Page* pages, u32 page_count) {
 
     // Output HTML header
     // clang-format off
-    write_html_head(fout, "Blog Index");
+    html_write_head(fout, "Blog Index");
     PRINT("<body>\n");
+    // html_write_header(fout);
     PRINT("  <h1>Blog Posts</h1>\n");
     PRINT("  <table class=\"archive\">\n");
     PRINT("    <thead><tr><th>date</th><th>title</th><th>tags</th></tr></thead>\n");
