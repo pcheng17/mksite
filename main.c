@@ -34,7 +34,7 @@ typedef int8_t   i8;
 #define MB(n) ((u64)(n) << 20)
 
 u64 get_page_size(void) {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
     return (u64)getpagesize();
 #endif
 }
