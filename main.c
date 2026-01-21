@@ -40,28 +40,30 @@ u64 get_page_size(void) {
 }
 
 void* reserve_memory(u64 size) {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
     return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 #endif
 }
 
 void* commit_memory(void* addr, u64 size) {
-#if defined(__APPLE__)
-    // On macOS, memory is committed on access, so just return the address
+#if defined(__APPLE__) || defined(__linux__)
+    // On MacOS and Linux, memory is committed on access, so just return the address
     return addr;
 #endif
 }
 
 bool decommit_memory(void* addr, u64 size) {
 #if defined(__APPLE__)
-    // On macOS, we can use madvise to indicate that the memory is no longer
-    // needed
+    // On MacOS, use madvise to indicate that the memory is no longer needed
     return madvise(addr, size, MADV_FREE) == 0;
+#elif defined(__linux__)
+    // On Linux, use MADV_DONTNEED instead of MADV_FREE
+    return madvise(addr, size, MADV_DONTNEED) == 0;
 #endif
 }
 
 bool release_memory(void* addr, u64 size) {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__)
     return munmap(addr, size) == 0;
 #endif
 }
