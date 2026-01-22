@@ -437,6 +437,64 @@ void html_write_header(FILE* fout) {
     PRINT("</header>\n");
 }
 
+void build_page(FILE* fout, const Page* page) {
+    char formatted_date[32];
+    if (page->date[0] && !format_date_full(page->date, formatted_date)) {
+        LOG_WARN("Invalid date format in page %s: %s\n", page->slug, page->date);
+        formatted_date[0] = '\0';
+    }
+
+    // Output HTML
+    // clang-format off
+    html_write_head(fout, page->title);
+    fprintf(fout, "<body>\n");
+    // html_write_header(fout);
+    fprintf(fout, "  <article>\n");
+    fprintf(fout, "    <h1>%s</h1>\n", page->title);
+    fprintf(fout, "    <div class=\"post-meta\">\n");
+    if (page->date[0]) {
+        fprintf(fout, "    <time style=\"color: #4b5563;\">%s</time>\n", formatted_date);
+    }
+    fprintf(fout, "    </div>\n");
+    fprintf(fout, "    <div class=\"content\">\n");
+    // clang-format on
+
+    bool in_paragraph = false;
+
+    char* cursor = (char*)page->content;
+
+    while (*cursor) {
+        // Find end of line
+        char* eol = strchr(cursor, '\n');
+        u32 len = eol ? (u32)(eol - cursor) : strlen(cursor);
+
+        if (len == 0) {
+            if (in_paragraph) {
+                fprintf(fout, "</p>\n");
+                in_paragraph = false;
+            }
+        } else {
+            if (!in_paragraph) {
+                fprintf(fout, "    <p>");
+                in_paragraph = true;
+            } else {
+                fprintf(fout, " ");
+            }
+            write_formatted_line(fout, cursor, len);
+        }
+
+        cursor += eol ? len + 1 : len; // skip past newline if present
+    }
+
+    if (in_paragraph) {
+        fprintf(fout, "</p>\n");
+    }
+    fprintf(fout, "    </div>\n");
+    fprintf(fout, "  </article>\n");
+    fprintf(fout, "</body>\n");
+    fprintf(fout, "</html>\n");
+}
+
 bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
     for (u32 i = 0; i < page_count; ++i) {
         Page* page = &pages[i];
@@ -451,61 +509,7 @@ bool build_pages(const char* dst_path, Page* pages, u32 page_count) {
             return false;
         }
 
-        char formatted_date[32];
-        if (page->date[0] && !format_date_full(page->date, formatted_date)) {
-            LOG_WARN("Invalid date format in page %s: %s\n", page->slug, page->date);
-            formatted_date[0] = '\0';
-        }
-
-        // Output HTML
-        // clang-format off
-        html_write_head(fout, page->title);
-        PRINT("<body>\n");
-        // html_write_header(fout);
-        PRINT("  <article>\n");
-        PRINT("    <h1>%s</h1>\n", page->title);
-        PRINT("    <div class=\"post-meta\">\n");
-        if (page->date[0]) {
-            PRINT("    <time style=\"color: #4b5563;\">%s</time>\n", formatted_date);
-        }
-        PRINT("    </div>\n");
-        PRINT("    <div class=\"content\">\n");
-        // clang-format on
-
-        bool in_paragraph = false;
-
-        char* cursor = (char*)page->content;
-
-        while (*cursor) {
-            // Find end of line
-            char* eol = strchr(cursor, '\n');
-            u32 len = eol ? (u32)(eol - cursor) : strlen(cursor);
-
-            if (len == 0) {
-                if (in_paragraph) {
-                    PRINT("</p>\n");
-                    in_paragraph = false;
-                }
-            } else {
-                if (!in_paragraph) {
-                    PRINT("    <p>");
-                    in_paragraph = true;
-                } else {
-                    PRINT(" ");
-                }
-                write_formatted_line(fout, cursor, len);
-            }
-
-            cursor += eol ? len + 1 : len; // skip past newline if present
-        }
-
-        if (in_paragraph) {
-            PRINT("</p>\n");
-        }
-        PRINT("    </div>\n");
-        PRINT("  </article>\n");
-        PRINT("</body>\n");
-        PRINT("</html>\n");
+        build_page(fout, page);
 
         fclose(fout);
     }
