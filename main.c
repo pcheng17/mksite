@@ -344,65 +344,86 @@ u32 import_pages(const char* dir_path, Arena* arena, Page** out_pages) {
     return page_count;
 }
 
+typedef enum {
+    FORMAT_NONE,
+    FORMAT_BOLD,
+    FORMAT_ITALIC,
+    FORMAT_HIGHLIGHT,
+    FORMAT_INLINE_CODE,
+    FORMAT_TYPE_COUNT
+} FormatType;
+
+FormatType get_format_type(const char* text, u32 pos, u32 len) {
+    if (pos + 1 < len && text[pos] == '*' && text[pos + 1] == '*') {
+        return FORMAT_BOLD;
+    } else if (pos + 1 < len && text[pos] == '_' && text[pos + 1] == '_') {
+        return FORMAT_ITALIC;
+    } else if (pos + 1 < len && text[pos] == '=' && text[pos + 1] == '=') {
+        return FORMAT_HIGHLIGHT;
+    } else if (text[pos] == '`' && pos + 1 < len && text[pos + 1] != '`') {
+        return FORMAT_INLINE_CODE;
+    }
+    return FORMAT_NONE;
+}
+
 void write_formatted_line(FILE* fout, const char* text, u32 len) {
     bool in_bold = false;
     bool in_italic = false;
     bool in_highlight = false;
 
     for (u32 i = 0; i < len; ++i) {
-        char c = text[i];
-        if (c == '*' && i + 1 < len && text[i + 1] == '*') {
-            if (in_bold) {
-                fprintf(fout, "</strong>");
-                in_bold = false;
-            } else {
-                fprintf(fout, "<strong>");
-                in_bold = true;
+        FormatType fmt_type = get_format_type(text, i, len);
+        switch (fmt_type) {
+            case FORMAT_BOLD:
+                if (in_bold) {
+                    fprintf(fout, "</strong>");
+                    in_bold = false;
+                } else {
+                    fprintf(fout, "<strong>");
+                    in_bold = true;
+                }
+                ++i; // skip next '*'
+                continue;
+            case FORMAT_ITALIC:
+                if (in_italic) {
+                    fprintf(fout, "</em>");
+                    in_italic = false;
+                } else {
+                    fprintf(fout, "<em>");
+                    in_italic = true;
+                }
+                i += 1; // skip next '_'
+                continue;
+            case FORMAT_HIGHLIGHT:
+                if (in_highlight) {
+                    fprintf(fout, "</mark>");
+                    in_highlight = false;
+                } else {
+                    fprintf(fout, "<mark>");
+                    in_highlight = true;
+                }
+                i += 1; // skip next '='
+                continue;
+            case FORMAT_INLINE_CODE: {
+                u32 j = i + 1;
+                while (j < len && text[j] != '`') {
+                    ++j;
+                }
+                if (j < len) {
+                    // Found closing backtick
+                    u32 code_len = j - (i + 1);
+                    fprintf(fout, "<code>%.*s</code>", code_len, text + i + 1);
+                    i = j; // Move past closing backtick
+                } else {
+                    // No closing backtick found, treat as normal text
+                    fputc(text[i], fout);
+                }
+                continue;
             }
-            ++i; // skip next '*'
-        } else if (c == '_' && i + 1 < len && text[i + 1] == '_') {
-            if (in_italic) {
-                fprintf(fout, "</em>");
-                in_italic = false;
-            } else {
-                fprintf(fout, "<em>");
-                in_italic = true;
-            }
-            ++i; // skip next '_'
-        } else if (c == '=' && i + 1 < len && text[i + 1] == '=') {
-            if (in_highlight) {
-                fprintf(fout, "</mark>");
-                in_highlight = false;
-            } else {
-                fprintf(fout, "<mark>");
-                in_highlight = true;
-            }
-            ++i; // skip next '='
-        }
-        // else if (c == '[' && i + 1 < len && text[i + 1] == '[') {
-        //     // Link start
-        //     u32 j = i + 2;
-        //     while (j + 1 < len && !(text[j] == ']' && text[j + 1] == ']')) {
-        //         ++j;
-        //     }
-        //     if (j + 1 < len) {
-        //         // Found closing brackets
-        //         u32 link_len = j - (i + 2);
-        //         char* link_text = (char*)malloc(link_len + 1);
-        //         strncpy(link_text, &text[i + 2], link_len);
-        //         link_text[link_len] = '\0';
-        //
-        //         // For simplicity, use the link text as the href
-        //         fprintf(fout, "<a href=\"%s\">%s</a>", link_text, link_text);
-        //         free(link_text);
-        //         i = j + 1; // Move past closing brackets
-        //     } else {
-        //         // No closing brackets found, treat as normal text
-        //         fputc(c, fout);
-        //     }
-        // }
-        else {
-            fputc(c, fout);
+            case FORMAT_NONE:
+            default:
+                fputc(text[i], fout);
+                break;
         }
     }
 
@@ -443,12 +464,6 @@ typedef struct {
 } HeadingInfo;
 
 HeadingInfo get_heading_info(const char* line, u32 len) {
-
-    // Debug
-    for (u32 i = 0; i < len; ++i) {
-        printf("'%c'", line[i]);
-    }
-
     HeadingInfo info = {0, 0};
     u32 i = 0;
 
@@ -456,8 +471,6 @@ HeadingInfo get_heading_info(const char* line, u32 len) {
         ++info.level;
         ++i;
     }
-
-    printf(" Heading level: %u\n", info.level);
 
     if (i < len && line[i] == ' ') i++;
 
