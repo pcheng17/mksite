@@ -437,6 +437,39 @@ void html_write_header(FILE* fout) {
     PRINT("</header>\n");
 }
 
+typedef struct {
+    u32 text_offset;
+    u8 level;
+} HeadingInfo;
+
+HeadingInfo get_heading_info(const char* line, u32 len) {
+
+    // Debug
+    for (u32 i = 0; i < len; ++i) {
+        printf("'%c'", line[i]);
+    }
+
+    HeadingInfo info = {0, 0};
+    u32 i = 0;
+
+    while (i < len && line[i] == '#') {
+        ++info.level;
+        ++i;
+    }
+
+    printf(" Heading level: %u\n", info.level);
+
+    if (i < len && line[i] == ' ') i++;
+
+    if (info.level > 0 && info.level <= 6) {
+        info.text_offset = i;
+    } else {
+        info.level = 0;
+    }
+
+    return info;
+}
+
 void build_page(FILE* fout, const Page* page) {
     char formatted_date[32];
     if (page->date[0] && !format_date_full(page->date, formatted_date)) {
@@ -475,8 +508,18 @@ void build_page(FILE* fout, const Page* page) {
             }
         } else {
             if (!in_paragraph) {
-                fprintf(fout, "    <p>");
-                in_paragraph = true;
+                HeadingInfo h_info = get_heading_info(cursor, len);
+                if (h_info.level > 0) {
+                    cursor += h_info.text_offset;
+                    fprintf(fout, "<h%u>", h_info.level);
+                    write_formatted_line(fout, cursor, len - h_info.text_offset);
+                    fprintf(fout, "</h%u>\n", h_info.level);
+                    cursor += eol ? len - h_info.text_offset + 1 : len - h_info.text_offset;
+                    continue;
+                } else {
+                    fprintf(fout, "    <p>");
+                    in_paragraph = true;
+                }
             } else {
                 fprintf(fout, " ");
             }
