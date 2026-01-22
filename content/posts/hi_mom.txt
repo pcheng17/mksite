@@ -4,10 +4,8 @@ date: 2026-01-17
 
 This is my first blog post. I'm going to try and write a tiny static site generator in <code class="language-c">C</code>.
 
-Here's a second paragraph^[1]. Notice how blank lines separate them.
+Here's a second paragraph^[This is a footnote example]. Notice how blank lines separate them.
 This line continues the same paragraph since there's no blank line above.
-
-^[1]: This is a footnote example.
 
 And a third paragraph here. I'm going to need to expand my generator to handle more complex formatting.
 But for now, this is a good start!

@@ -243,6 +243,150 @@ void slugify(const char* input, char* output, u32 output_size) {
     output[j] = '\0';
 }
 
+bool is_blank_line(const char* line, u32 len) {
+    for (u32 i = 0; i < len; ++i) {
+        if (line[i] != ' ' && line[i] != '\t') {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool is_code_fence(const char* line, u32 len) {
+    return len >= 3 && line[0] == '`' && line[1] == '`' && line[2] == '`';
+}
+
+u8 get_heading_level(const char* line, u32 len) {
+    u8 level = 0;
+    while (level < len && line[level] == '#') {
+        ++level;
+    }
+    if (level > 0 && level <= 6 && level < len && line[level] == ' ') {
+        return level;
+    }
+    return 0;
+}
+
+bool is_unordered_list_item(const char* line, u32 len) {
+    return len >= 2 && line[0] == '-' && line[1] == ' ';
+}
+
+bool is_ordered_list_item(const char* line, u32 len) {
+    u32 i = 0;
+    while (i < len && isdigit(line[i])) {
+        ++i;
+    }
+    return i > 0 && i + 1 < len && line[i] == '.' && line[i + 1] == ' ';
+}
+
+u32 get_line_len(const char* cursor) {
+    const char* eol = strchr(cursor, '\n');
+    return eol ? (u32)(eol - cursor) : (u32)strlen(cursor);
+}
+
+// Collect paragraph text: consecutive non-blank, non-special lines joined with spaces
+// Returns length of collected text, advances *cursor past consumed input
+u32 collect_paragraph(const char** cursor, char* out, u32 out_size) {
+    u32 out_len = 0;
+    bool first_line = true;
+
+    while (**cursor) {
+        u32 line_len = get_line_len(*cursor);
+
+        // Stop conditions: blank line or special line types
+        if (line_len == 0 || is_blank_line(*cursor, line_len)) {
+            break;
+        }
+        if (is_code_fence(*cursor, line_len)) {
+            break;
+        }
+        if (get_heading_level(*cursor, line_len) > 0) {
+            break;
+        }
+        if (is_unordered_list_item(*cursor, line_len)) {
+            break;
+        }
+        if (is_ordered_list_item(*cursor, line_len)) {
+            break;
+        }
+
+        // Add space between lines (not before first line)
+        if (!first_line && out_len < out_size - 1) {
+            out[out_len++] = ' ';
+        }
+        first_line = false;
+
+        // Copy line content
+        u32 copy_len = (out_len + line_len < out_size - 1) ? line_len : (out_size - 1 - out_len);
+        memcpy(out + out_len, *cursor, copy_len); // TODO REMOVE MEMCPY
+        out_len += copy_len;
+
+        // Advance cursor past line and newline
+        *cursor += line_len;
+        if (**cursor == '\n') {
+            (*cursor)++;
+        }
+    }
+
+    out[out_len] = '\0';
+    return out_len;
+}
+
+// Collect code block content until closing fence
+// Returns length of collected text, advances *cursor past closing fence
+u32 collect_code_block(const char** cursor, char* out, u32 out_size) {
+    u32 out_len = 0;
+
+    while (**cursor) {
+        u32 line_len = get_line_len(*cursor);
+
+        // Check for closing fence
+        if (is_code_fence(*cursor, line_len)) {
+            *cursor += line_len;
+            if (**cursor == '\n') {
+                (*cursor)++;
+            }
+            break;
+        }
+
+        // Copy line content (preserve newlines in code blocks)
+        u32 copy_len = (out_len + line_len < out_size - 1) ? line_len : (out_size - 1 - out_len);
+        memcpy(out + out_len, *cursor, copy_len);
+        out_len += copy_len;
+
+        // Advance cursor
+        *cursor += line_len;
+        if (**cursor == '\n') {
+            (*cursor)++;
+            if (out_len < out_size - 1) {
+                out[out_len++] = '\n';
+            }
+        }
+    }
+
+    // Remove trailing newline if present
+    if (out_len > 0 && out[out_len - 1] == '\n') {
+        out_len--;
+    }
+    out[out_len] = '\0';
+    return out_len;
+}
+
+// Get the text offset after list marker (e.g., "- " returns 2, "1. " returns 3)
+u32 get_list_item_offset(const char* line, u32 len) {
+    if (is_unordered_list_item(line, len)) {
+        return 2; // "- "
+    }
+    if (is_ordered_list_item(line, len)) {
+        u32 i = 0;
+        while (i < len && isdigit(line[i])) {
+            ++i;
+        }
+        return i + 2; // digits + ". "
+    }
+    return 0;
+}
+
 char* read_file(Arena* arena, const char* path, u64* file_len) {
     FILE* f = fopen(path, "rb");
     if (!f) {
@@ -350,8 +494,24 @@ typedef enum {
     FORMAT_ITALIC,
     FORMAT_HIGHLIGHT,
     FORMAT_INLINE_CODE,
+    FORMAT_SIDENOTE,
+    FORMAT_MARGIN_NOTE,
     FORMAT_TYPE_COUNT
 } FormatType;
+
+typedef enum {
+    BLOCK_NONE,
+    BLOCK_CODE,
+    BLOCK_UNORDERED_LIST,
+    BLOCK_ORDERED_LIST,
+} BlockType;
+
+typedef struct {
+    bool in_section;
+    bool in_paragraph;
+    BlockType block;
+    u32 sidenote_id;
+} ParseState;
 
 FormatType get_format_type(const char* text, u32 pos, u32 len) {
     if (pos + 1 < len && text[pos] == '*' && text[pos + 1] == '*') {
@@ -362,11 +522,63 @@ FormatType get_format_type(const char* text, u32 pos, u32 len) {
         return FORMAT_HIGHLIGHT;
     } else if (text[pos] == '`' && pos + 1 < len && text[pos + 1] != '`') {
         return FORMAT_INLINE_CODE;
+    } else if (pos + 2 < len && text[pos] == '^' && text[pos + 1] == '-' && text[pos + 2] == '[') {
+        return FORMAT_MARGIN_NOTE;
+    } else if (pos + 1 < len && text[pos] == '^' && text[pos + 1] == '[') {
+        return FORMAT_SIDENOTE;
     }
     return FORMAT_NONE;
 }
 
-void write_formatted_line(FILE* fout, const char* text, u32 len) {
+void write_html_escaped(FILE* fout, const char* text, u32 len) {
+    for (u32 i = 0; i < len; ++i) {
+        switch (text[i]) {
+            case '<': fprintf(fout, "&lt;"); break;
+            case '>': fprintf(fout, "&gt;"); break;
+            case '&': fprintf(fout, "&amp;"); break;
+            default: fputc(text[i], fout); break;
+        }
+    }
+}
+
+// Find matching closing bracket, accounting for nested brackets
+// Returns position of ']' or len if not found
+u32 find_closing_bracket(const char* text, u32 start, u32 len) {
+    u32 depth = 1;
+    for (u32 i = start; i < len; ++i) {
+        if (text[i] == '[') {
+            depth++;
+        } else if (text[i] == ']') {
+            depth--;
+            if (depth == 0) {
+                return i;
+            }
+        }
+    }
+    return len;
+}
+
+void write_formatted_content(FILE* fout, const char* text, u32 len, ParseState* state);
+
+void write_sidenote(FILE* fout, const char* content, u32 content_len, ParseState* state) {
+    u32 id = ++state->sidenote_id;
+    fprintf(fout, "<label for=\"sn-%u\" class=\"margin-toggle sidenote-number\"></label>", id);
+    fprintf(fout, "<input type=\"checkbox\" id=\"sn-%u\" class=\"margin-toggle\"/>", id);
+    fprintf(fout, "<span class=\"sidenote\">");
+    write_formatted_content(fout, content, content_len, state);
+    fprintf(fout, "</span>");
+}
+
+void write_margin_note(FILE* fout, const char* content, u32 content_len, ParseState* state) {
+    u32 id = ++state->sidenote_id;
+    fprintf(fout, "<label for=\"mn-%u\" class=\"margin-toggle\">&#8853;</label>", id);
+    fprintf(fout, "<input type=\"checkbox\" id=\"mn-%u\" class=\"margin-toggle\"/>", id);
+    fprintf(fout, "<span class=\"marginnote\">");
+    write_formatted_content(fout, content, content_len, state);
+    fprintf(fout, "</span>");
+}
+
+void write_formatted_content(FILE* fout, const char* text, u32 len, ParseState* state) {
     bool in_bold = false;
     bool in_italic = false;
     bool in_highlight = false;
@@ -410,12 +622,34 @@ void write_formatted_line(FILE* fout, const char* text, u32 len) {
                     ++j;
                 }
                 if (j < len) {
-                    // Found closing backtick
                     u32 code_len = j - (i + 1);
                     fprintf(fout, "<code>%.*s</code>", code_len, text + i + 1);
-                    i = j; // Move past closing backtick
+                    i = j;
                 } else {
-                    // No closing backtick found, treat as normal text
+                    fputc(text[i], fout);
+                }
+                continue;
+            }
+            case FORMAT_SIDENOTE: {
+                // ^[content]
+                u32 content_start = i + 2; // skip "^["
+                u32 close = find_closing_bracket(text, content_start, len);
+                if (close < len) {
+                    write_sidenote(fout, text + content_start, close - content_start, state);
+                    i = close;
+                } else {
+                    fputc(text[i], fout);
+                }
+                continue;
+            }
+            case FORMAT_MARGIN_NOTE: {
+                // ^-[content]
+                u32 content_start = i + 3; // skip "^-["
+                u32 close = find_closing_bracket(text, content_start, len);
+                if (close < len) {
+                    write_margin_note(fout, text + content_start, close - content_start, state);
+                    i = close;
+                } else {
                     fputc(text[i], fout);
                 }
                 continue;
@@ -483,6 +717,34 @@ HeadingInfo get_heading_info(const char* line, u32 len) {
     return info;
 }
 
+#define BUFFER_SIZE 8192
+
+void close_paragraph(FILE* fout, ParseState* state) {
+    if (state->in_paragraph) {
+        fprintf(fout, "</p>\n");
+        state->in_paragraph = false;
+    }
+}
+
+void close_list(FILE* fout, ParseState* state) {
+    if (state->block == BLOCK_UNORDERED_LIST) {
+        fprintf(fout, "</ul>\n");
+        state->block = BLOCK_NONE;
+    } else if (state->block == BLOCK_ORDERED_LIST) {
+        fprintf(fout, "</ol>\n");
+        state->block = BLOCK_NONE;
+    }
+}
+
+void close_section(FILE* fout, ParseState* state) {
+    close_paragraph(fout, state);
+    close_list(fout, state);
+    if (state->in_section) {
+        fprintf(fout, "</section>\n");
+        state->in_section = false;
+    }
+}
+
 void build_page(FILE* fout, const Page* page) {
     char formatted_date[32];
     if (page->date[0] && !format_date_full(page->date, formatted_date)) {
@@ -494,59 +756,123 @@ void build_page(FILE* fout, const Page* page) {
     // clang-format off
     html_write_head(fout, page->title);
     fprintf(fout, "<body>\n");
-    // html_write_header(fout);
-    fprintf(fout, "  <article>\n");
-    fprintf(fout, "    <h1>%s</h1>\n", page->title);
-    fprintf(fout, "    <div class=\"post-meta\">\n");
+    fprintf(fout, "<article>\n");
+    fprintf(fout, "<h1>%s</h1>\n", page->title);
     if (page->date[0]) {
-        fprintf(fout, "    <time style=\"color: #4b5563;\">%s</time>\n", formatted_date);
+        fprintf(fout, "<p class=\"subtitle\">%s</p>\n", formatted_date);
     }
-    fprintf(fout, "    </div>\n");
-    fprintf(fout, "    <div class=\"content\">\n");
     // clang-format on
 
-    bool in_paragraph = false;
-
-    char* cursor = (char*)page->content;
+    ParseState state = {0};
+    char buffer[BUFFER_SIZE];
+    const char* cursor = page->content;
 
     while (*cursor) {
-        // Find end of line
-        char* eol = strchr(cursor, '\n');
-        u32 len = eol ? (u32)(eol - cursor) : strlen(cursor);
+        u32 line_len = get_line_len(cursor);
 
-        if (len == 0) {
-            if (in_paragraph) {
-                fprintf(fout, "</p>\n");
-                in_paragraph = false;
-            }
-        } else {
-            if (!in_paragraph) {
-                HeadingInfo h_info = get_heading_info(cursor, len);
-                if (h_info.level > 0) {
-                    cursor += h_info.text_offset;
-                    fprintf(fout, "<h%u>", h_info.level);
-                    write_formatted_line(fout, cursor, len - h_info.text_offset);
-                    fprintf(fout, "</h%u>\n", h_info.level);
-                    cursor += eol ? len - h_info.text_offset + 1 : len - h_info.text_offset;
-                    continue;
-                } else {
-                    fprintf(fout, "    <p>");
-                    in_paragraph = true;
-                }
-            } else {
-                fprintf(fout, " ");
-            }
-            write_formatted_line(fout, cursor, len);
+        // Blank line
+        if (line_len == 0 || is_blank_line(cursor, line_len)) {
+            close_paragraph(fout, &state);
+            close_list(fout, &state);
+            cursor += line_len;
+            if (*cursor == '\n') cursor++;
+            continue;
         }
 
-        cursor += eol ? len + 1 : len; // skip past newline if present
+        // Code fence
+        if (is_code_fence(cursor, line_len)) {
+            close_paragraph(fout, &state);
+            close_list(fout, &state);
+            // Skip opening fence
+            cursor += line_len;
+            if (*cursor == '\n') cursor++;
+            // Collect code block
+            u32 code_len = collect_code_block(&cursor, buffer, BUFFER_SIZE);
+            fprintf(fout, "<pre><code>");
+            write_html_escaped(fout, buffer, code_len);
+            fprintf(fout, "</code></pre>\n");
+            continue;
+        }
+
+        // Heading
+        u8 heading_level = get_heading_level(cursor, line_len);
+        if (heading_level > 0) {
+            close_paragraph(fout, &state);
+            close_list(fout, &state);
+
+            // h2 starts a new section
+            if (heading_level == 2) {
+                close_section(fout, &state);
+                fprintf(fout, "<section>\n");
+                state.in_section = true;
+            }
+
+            // Extract heading text (skip "## ")
+            u32 text_offset = heading_level + 1;
+            u32 text_len = line_len - text_offset;
+            fprintf(fout, "<h%u>", heading_level);
+            write_formatted_content(fout, cursor + text_offset, text_len, &state);
+            fprintf(fout, "</h%u>\n", heading_level);
+
+            cursor += line_len;
+            if (*cursor == '\n') cursor++;
+            continue;
+        }
+
+        // Unordered list item
+        if (is_unordered_list_item(cursor, line_len)) {
+            close_paragraph(fout, &state);
+
+            if (state.block != BLOCK_UNORDERED_LIST) {
+                close_list(fout, &state);
+                fprintf(fout, "<ul>\n");
+                state.block = BLOCK_UNORDERED_LIST;
+            }
+
+            u32 item_offset = get_list_item_offset(cursor, line_len);
+            fprintf(fout, "<li>");
+            write_formatted_content(fout, cursor + item_offset, line_len - item_offset, &state);
+            fprintf(fout, "</li>\n");
+
+            cursor += line_len;
+            if (*cursor == '\n') cursor++;
+            continue;
+        }
+
+        // Ordered list item
+        if (is_ordered_list_item(cursor, line_len)) {
+            close_paragraph(fout, &state);
+
+            if (state.block != BLOCK_ORDERED_LIST) {
+                close_list(fout, &state);
+                fprintf(fout, "<ol>\n");
+                state.block = BLOCK_ORDERED_LIST;
+            }
+
+            u32 item_offset = get_list_item_offset(cursor, line_len);
+            fprintf(fout, "<li>");
+            write_formatted_content(fout, cursor + item_offset, line_len - item_offset, &state);
+            fprintf(fout, "</li>\n");
+
+            cursor += line_len;
+            if (*cursor == '\n') cursor++;
+            continue;
+        }
+
+        // Paragraph text - collect full paragraph
+        close_list(fout, &state);
+        u32 para_len = collect_paragraph(&cursor, buffer, BUFFER_SIZE);
+        if (para_len > 0) {
+            fprintf(fout, "<p>");
+            write_formatted_content(fout, buffer, para_len, &state);
+            fprintf(fout, "</p>\n");
+        }
     }
 
-    if (in_paragraph) {
-        fprintf(fout, "</p>\n");
-    }
-    fprintf(fout, "    </div>\n");
-    fprintf(fout, "  </article>\n");
+    // Close any remaining open elements
+    close_section(fout, &state);
+
+    fprintf(fout, "</article>\n");
     fprintf(fout, "</body>\n");
     fprintf(fout, "</html>\n");
 }
